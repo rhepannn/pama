@@ -26,7 +26,7 @@ const navItems = [
   },
 ]
 
-export default function Sidebar({ onLogout }: { onLogout: () => void }) {
+export default function Sidebar({ onLogout, user }: { onLogout: () => void; user?: { email: string; role: string } }) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
@@ -89,7 +89,8 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
         {!collapsed && (
           <div className="text-xs mb-3 px-1" style={{ color: '#4A5C75' }}>
             <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ background: '#2ECC71' }} /><span>System Online</span></div>
-            <div className="mt-1">PAMA · ASTRA Group</div>
+            {user && <div className="mt-1">{user.email}</div>}
+            {user && <div className="text-xs mt-0.5" style={{ color: '#F5A623' }}>{user.role}</div>}
           </div>
         )}
         <button

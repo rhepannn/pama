@@ -1,189 +1,60 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer,
-} from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '@/lib/supabase'
+import Toast from '@/components/Toast'
 
-const GOLD   = '#F5A623'
-const RED    = '#E74C3C'
-const ORANGE = '#F97316'
-const YELLOW2 = '#F39C12'
-const GREEN  = '#2ECC71'
+const GOLD='#F5A623';const RED='#E74C3C';const ORANGE='#F97316';const YELLOW2='#F39C12';const GREEN='#2ECC71'
+const sev:Record<string,any>={critical:{bg:'rgba(231,76,60,0.15)',c:RED,b:'#E74C3C40'},high:{bg:'rgba(249,115,22,0.15)',c:ORANGE,b:'#F9731640'},medium:{bg:'rgba(243,156,18,0.15)',c:YELLOW2,b:'#F39C1240'}}
+const alertOpts=['fatigue_detection','unsafe_act','near_miss','breakdown_risk','environmental']
+const alertLbl:Record<string,string>={fatigue_detection:'Fatigue Detection',unsafe_act:'Unsafe Act',near_miss:'Near Miss',breakdown_risk:'Breakdown Risk',environmental:'Environmental'}
+function fmtDate(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function fmtTime(ts:string|null){if(!ts)return'—';const d=new Date(ts);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+function fmtDateTime(ts:string|null){if(!ts)return'—';const d=new Date(ts);return`${d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})} ${fmtTime(ts)}`}
 
-const sev: Record<string, any> = {
-  critical: { bg: 'rgba(231,76,60,0.15)', c: RED, b: '#E74C3C40' },
-  high:     { bg: 'rgba(249,115,22,0.15)', c: ORANGE, b: '#F9731640' },
-  medium:   { bg: 'rgba(243,156,18,0.15)', c: YELLOW2, b: '#F39C1240' },
-}
+export default function SafetyAlert(){
+  const [alerts,setAlerts]=useState<any[]>([]);const [resolved,setResolved]=useState<any[]>([]);const [units,setUnits]=useState<any[]>([]);const [loading,setLoading]=useState(true)
+  const [trend,setTrend]=useState<any[]>([]);const [toast,setToast]=useState<{message:string;type:'success'|'error'}|null>(null)
+  const [showRpt,setShowRpt]=useState(false);const [rpt,setRpt]=useState({unit_id:'',alert_type:'fatigue_detection',severity:'critical',location:'',description:'',reported_by:''});const [rptErr,setRptErr]=useState('')
 
-const alertOpts = ['fatigue_detection', 'unsafe_act', 'near_miss', 'breakdown_risk', 'environmental']
-const alertLbl: Record<string, string> = {
-  fatigue_detection: 'Fatigue Detection',
-  unsafe_act: 'Unsafe Act',
-  near_miss: 'Near Miss',
-  breakdown_risk: 'Breakdown Risk',
-  environmental: 'Environmental',
-}
-
-function fmtDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
-function fmtTime(ts: string | null) { if (!ts) return '—'; const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
-function fmtDateTime(ts: string | null) { if (!ts) return '—'; const d = new Date(ts); return `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} ${fmtTime(ts)}` }
-
-export default function SafetyAlert() {
-  const [alerts, setAlerts] = useState<any[]>([])
-  const [resolvedAlerts, setResolvedAlerts] = useState<any[]>([])
-  const [units, setUnits] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [trendData, setTrendData] = useState<any[]>([])
-
-  const [showReport, setShowReport] = useState(false)
-  const [report, setReport] = useState({ unit_id: '', alert_type: 'fatigue_detection', severity: 'critical', location: '', description: '', reported_by: '' })
-
-  const openAlerts = alerts.filter(a => a.status === 'open')
-  const totalAktif = openAlerts.length
-  const cr = openAlerts.filter(a => a.severity === 'critical').length
-  const hi = openAlerts.filter(a => a.severity === 'high').length
-  const md = openAlerts.filter(a => a.severity === 'medium').length
-
-  const fetchData = async () => {
-    const { data: op } = await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status', 'open').order('created_at', { ascending: false })
-    setAlerts(op || [])
-
-    const { data: rs } = await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status', 'resolved').order('created_at', { ascending: false }).limit(50)
-    setResolvedAlerts(rs || [])
-
-    const { data: u } = await supabase.from('mining_units').select('*').order('unit_id')
-    setUnits(u || [])
-
-    const ago = new Date(); ago.setDate(ago.getDate() - 29)
-    const today = fmtDate(new Date())
-    const { data: tl } = await supabase.from('safety_alerts').select('created_at, alert_type').gte('created_at', fmtDate(ago)).lte('created_at', `${today}T23:59:59`)
-    const m: Record<string, any> = {}
-    if (tl) tl.forEach((l: any) => { const d = l.created_at ? fmtDate(new Date(l.created_at)) : null; if (!d) return; if (!m[d]) m[d] = { fatigue_detection: 0, unsafe_act: 0, near_miss: 0, breakdown_risk: 0, environmental: 0, total: 0 }; m[d][l.alert_type] = (m[d][l.alert_type] || 0) + 1; m[d].total += 1 })
-    const arr: { date: string; fatigue: number; unsafeAct: number; nearMiss: number; breakdown: number; env: number; total: number }[] = []; for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const k = fmtDate(d); arr.push({ date: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`, fatigue: m[k]?.fatigue_detection || 0, unsafeAct: m[k]?.unsafe_act || 0, nearMiss: m[k]?.near_miss || 0, breakdown: m[k]?.breakdown_risk || 0, env: m[k]?.environmental || 0, total: m[k]?.total || 0 }) }
-    setTrendData(arr)
-    setLoading(false)
+  const fetch=async()=>{
+    const{data:op}=await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status','open').order('created_at',{ascending:false});setAlerts(op||[])
+    const{data:rs}=await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status','resolved').order('created_at',{ascending:false}).limit(50);setResolved(rs||[])
+    const{data:u}=await supabase.from('mining_units').select('*').order('unit_id');setUnits(u||[])
+    const ago=new Date();ago.setDate(ago.getDate()-29);const today=fmtDate(new Date())
+    const{data:tl}=await supabase.from('safety_alerts').select('created_at, alert_type').gte('created_at',fmtDate(ago)).lte('created_at',`${today}T23:59:59`)
+    const m:Record<string,any>={};if(tl)tl.forEach((l:any)=>{const d=l.created_at?fmtDate(new Date(l.created_at)):null;if(!d)return;if(!m[d])m[d]={fatigue_detection:0,unsafe_act:0,near_miss:0,breakdown_risk:0,environmental:0,total:0};m[d][l.alert_type]=(m[d][l.alert_type]||0)+1;m[d].total+=1})
+    const arr:{date:string;fatigue:number;unsafeAct:number;nearMiss:number;breakdown:number;env:number;total:number}[]=[];for(let i=29;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=fmtDate(d);arr.push({date:`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`,fatigue:m[k]?.fatigue_detection||0,unsafeAct:m[k]?.unsafe_act||0,nearMiss:m[k]?.near_miss||0,breakdown:m[k]?.breakdown_risk||0,env:m[k]?.environmental||0,total:m[k]?.total||0})}
+    setTrend(arr);setLoading(false)
   }
-  useEffect(() => { fetchData() }, [])
+  useEffect(()=>{fetch()},[])
 
-  const handleTangani = async (id: string) => { const { error } = await supabase.from('safety_alerts').update({ status: 'resolved' }).eq('id', id); if (error) alert('Gagal: ' + error.message); else fetchData() }
-  const handleReport = async (e: React.FormEvent) => { e.preventDefault(); const u = units.find(x => x.unit_id === report.unit_id); const { error } = await supabase.from('safety_alerts').insert({ unit_id: u?.id || null, alert_type: report.alert_type, severity: report.severity, location: report.location, description: report.description, reported_by: report.reported_by }); if (error) { alert('Gagal lapor: ' + error.message); return } setShowReport(false); setReport({ unit_id: '', alert_type: 'fatigue_detection', severity: 'critical', location: '', description: '', reported_by: '' }); fetchData() }
+  const openA=alerts.filter((a:any)=>a.status==='open');const ta=openA.length;const cr=openA.filter((a:any)=>a.severity==='critical').length;const hi=openA.filter((a:any)=>a.severity==='high').length;const md=openA.filter((a:any)=>a.severity==='medium').length
 
-  if (loading) return <div className="flex items-center justify-center h-full"><div className="w-10 h-10 border-4 border-gray-700 rounded-full animate-spin" style={{ borderTopColor: GOLD }} /></div>
+  const tangani=async(id:string)=>{const{error}=await supabase.from('safety_alerts').update({status:'resolved'}).eq('id',id);if(error)setToast({message:'Gagal: '+error.message,type:'error'});else{setToast({message:'Alert berhasil ditangani',type:'success'});fetch()}}
+  const report=async(e:React.FormEvent)=>{
+    e.preventDefault();setRptErr('')
+    if(!rpt.location.trim()){setRptErr('Lokasi wajib diisi');return}
+    if(!rpt.description.trim()){setRptErr('Deskripsi wajib diisi');return}
+    const u=units.find(x=>x.unit_id===rpt.unit_id)
+    const{error}=await supabase.from('safety_alerts').insert({unit_id:u?.id||null,alert_type:rpt.alert_type,severity:rpt.severity,location:rpt.location,description:rpt.description,reported_by:rpt.reported_by})
+    if(error){setRptErr('Gagal: '+error.message);return}
+    setShowRpt(false);setRpt({unit_id:'',alert_type:'fatigue_detection',severity:'critical',location:'',description:'',reported_by:''})
+    setToast({message:'Kejadian berhasil dilaporkan',type:'success'});fetch()
+  }
 
-  return (
+  if(loading)return<div className="flex items-center justify-center h-full"><div className="w-10 h-10 border-4 border-gray-700 rounded-full animate-spin" style={{borderTopColor:GOLD}}/></div>
+
+  return(
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-white">Safety & Alert — K3LH</h1>
-          <p className="text-sm mt-0.5" style={{ color: '#7B8BA3' }}>Keselamatan & Kesehatan Kerja · Lingkungan Hidup</p>
-        </div>
-        <button onClick={() => setShowReport(true)} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: GOLD, color: '#060D1A' }}>+ Laporkan Kejadian</button>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          ['Total Alert Aktif', totalAktif, GOLD, '#0B1A33', '#152244'],
-          ['Critical', cr, RED, 'rgba(231,76,60,0.1)', '#E74C3C40'],
-          ['High', hi, ORANGE, 'rgba(249,115,22,0.1)', '#F9731640'],
-          ['Medium', md, YELLOW2, 'rgba(243,156,18,0.1)', '#F39C1240'],
-        ].map(([l, v, c, bg, brd]) => (
-          <div key={l as string} className="rounded-xl p-5 text-center" style={{ background: bg as string, border: `1px solid ${brd}` }}>
-            <div className="text-3xl font-black" style={{ color: c as string }}>{v as number}</div>
-            <div className="text-xs mt-1 font-semibold uppercase tracking-wider" style={{ color: c as string }}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #152244' }}>
-        <div className="px-5 py-3 flex items-center justify-between" style={{ background: '#060D1A', borderBottom: '1px solid #152244' }}>
-          <h3 className="text-sm font-semibold text-white">{openAlerts.length} Alert Aktif — Perlu Penanganan</h3>
-          <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(231,76,60,0.15)', color: RED }}>{cr} Critical</span>
-        </div>
-        <div className="divide-y" style={{ borderColor: '#152244' }}>
-          {openAlerts.map(a => { const s = sev[a.severity] || sev.medium; return (
-            <div key={a.id} className="flex items-start gap-4 px-5 py-4" style={{ background: '#0B1A33' }}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center flex-wrap gap-2 mb-1.5">
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: s.bg, color: s.c, border: `1px solid ${s.b}` }}>{a.severity.toUpperCase()}</span>
-                  <span className="text-xs font-bold" style={{ color: '#D4DCE8' }}>{alertLbl[a.alert_type] || a.alert_type}</span>
-                  {a.mining_units?.unit_id && <><span className="text-xs" style={{ color: '#4A5C75' }}>·</span><span className="text-xs font-mono font-bold text-white">{a.mining_units.unit_id}</span></>}
-                  {a.reported_by && <span className="text-xs ml-auto" style={{ color: '#4A5C75' }}>👤 {a.reported_by}</span>}
-                </div>
-                {(a.location || a.description) && <p className="text-xs leading-relaxed mb-1" style={{ color: '#7B8BA3' }}>{[a.location, a.description].filter(Boolean).join(' — ')}</p>}
-                <span className="text-xs" style={{ color: '#4A5C75' }}>{fmtDateTime(a.created_at)}</span>
-              </div>
-              <button onClick={() => handleTangani(a.id)} className="text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 hover:opacity-85 transition" style={{ background: GOLD, color: '#060D1A' }}>Tangani ✓</button>
-            </div>
-          )})}
-          {openAlerts.length === 0 && <div className="px-5 py-12 text-center text-sm" style={{ color: '#4A5C75', background: '#0B1A33' }}>Semua clear — tidak ada alert aktif ✅</div>}
-        </div>
-      </div>
-
-      <div className="rounded-xl p-5" style={{ background: '#0B1A33', border: '1px solid #152244' }}>
-        <h3 className="text-sm font-semibold text-white mb-4">Tren Insiden 30 Hari Terakhir</h3>
-        {trendData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trendData}>
-              <CartesianGrid stroke="#152244" strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fill: '#7B8BA3', fontSize: 10 }} axisLine={false} tickLine={false} interval={4} />
-              <YAxis tick={{ fill: '#7B8BA3', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: '#060D1A', border: '1px solid #1A3470', borderRadius: 8 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="fatigue" name="Fatigue" stroke="#60A5FA" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="unsafeAct" name="Unsafe Act" stroke={RED} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="nearMiss" name="Near Miss" stroke={GOLD} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="breakdown" name="Breakdown" stroke="#A78BFA" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="env" name="Env" stroke={GREEN} strokeWidth={1.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : <p className="text-xs text-center py-8" style={{ color: '#4A5C75' }}>Belum ada data insiden</p>}
-      </div>
-
-      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #152244' }}>
-        <div className="px-5 py-3" style={{ background: '#060D1A', borderBottom: '1px solid #152244' }}><h3 className="text-sm font-semibold text-white">Riwayat Terselesaikan ({resolvedAlerts.length})</h3></div>
-        <table className="w-full text-sm">
-          <thead><tr style={{ background: '#060D1A', borderBottom: '1px solid #152244' }}>{['Tipe', 'Severity', 'Unit', 'Lokasi', 'Deskripsi', 'Waktu', 'Pelapor'].map(h => <th key={h} className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: '#7B8BA3' }}>{h}</th>)}</tr></thead>
-          <tbody>
-            {resolvedAlerts.map(r => { const s = sev[r.severity] || sev.medium; return (
-              <tr key={r.id} style={{ borderBottom: '1px solid #152244' }}>
-                <td className="px-3 py-3 text-xs text-white">{alertLbl[r.alert_type] || r.alert_type}</td>
-                <td className="px-3 py-3"><span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: s.bg, color: s.c, border: `1px solid ${s.b}` }}>{r.severity}</span></td>
-                <td className="px-3 py-3 font-mono text-xs text-white">{r.mining_units?.unit_id || '—'}</td>
-                <td className="px-3 py-3 text-xs" style={{ color: '#7B8BA3' }}>{r.location || '—'}</td>
-                <td className="px-3 py-3 text-xs max-w-xs truncate" style={{ color: '#7B8BA3' }}>{r.description || '—'}</td>
-                <td className="px-3 py-3 text-xs" style={{ color: '#4A5C75' }}>{fmtDateTime(r.created_at)}</td>
-                <td className="px-3 py-3 text-xs" style={{ color: '#4A5C75' }}>{r.reported_by || '—'}</td>
-              </tr>
-            )})}
-            {resolvedAlerts.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-xs" style={{ color: '#4A5C75' }}>Belum ada alert terselesaikan</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {showReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
-          <div className="rounded-2xl w-full max-w-lg shadow-2xl" style={{ background: '#0B1A33', border: '1px solid #1A3470' }}>
-            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: '#152244' }}><h3 className="font-bold text-white">Laporkan Kejadian K3LH</h3><button onClick={() => setShowReport(false)} className="text-gray-500 hover:text-white p-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button></div>
-            <form onSubmit={handleReport} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Unit</label><select value={report.unit_id} onChange={e => setReport(f => ({ ...f, unit_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}><option value="">Tanpa unit</option>{units.map(u => <option key={u.id} value={u.unit_id}>{u.unit_id}</option>)}</select></div>
-                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Dilaporkan Oleh</label><input type="text" value={report.reported_by} onChange={e => setReport(f => ({ ...f, reported_by: e.target.value }))} placeholder="Nama / Jabatan" className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Tipe Kejadian</label><select value={report.alert_type} onChange={e => setReport(f => ({ ...f, alert_type: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}>{alertOpts.map(t => <option key={t} value={t}>{alertLbl[t]}</option>)}</select></div>
-                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Severity</label><select value={report.severity} onChange={e => setReport(f => ({ ...f, severity: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option></select></div>
-              </div>
-              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Lokasi</label><input type="text" value={report.location} onChange={e => setReport(f => ({ ...f, location: e.target.value }))} required placeholder="Contoh: Pit 1A Loading Point" className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
-              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Deskripsi Kejadian</label><textarea value={report.description} onChange={e => setReport(f => ({ ...f, description: e.target.value }))} required rows={3} placeholder="Jelaskan kronologi kejadian secara detail..." className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600 resize-none" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
-              <button type="submit" className="w-full py-2.5 rounded-lg text-sm font-bold" style={{ background: GOLD, color: '#060D1A' }}>Laporkan Kejadian</button>
-            </form>
-          </div>
-        </div>
-      )}
+      {toast&&<Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)}/>}
+      <div className="flex items-center justify-between"><div><h1 className="text-2xl font-black text-white">Safety & Alert — K3LH</h1><p className="text-sm mt-0.5" style={{color:'#7B8BA3'}}>Keselamatan & Kesehatan Kerja · Lingkungan Hidup</p></div><button onClick={()=>setShowRpt(true)} className="px-4 py-2 rounded-lg text-sm font-bold" style={{background:GOLD,color:'#060D1A'}}>+ Laporkan Kejadian</button></div>
+      <div className="grid grid-cols-4 gap-4">{[['Total Alert Aktif',ta,GOLD,'#0B1A33','#152244'],['Critical',cr,RED,'rgba(231,76,60,0.1)','#E74C3C40'],['High',hi,ORANGE,'rgba(249,115,22,0.1)','#F9731640'],['Medium',md,YELLOW2,'rgba(243,156,18,0.1)','#F39C1240']].map(([l,v,c,bg,brd])=><div key={l as string} className="rounded-xl p-5 text-center" style={{background:bg as string,border:`1px solid ${brd}`}}><div className="text-3xl font-black" style={{color:c as string}}>{v as number}</div><div className="text-xs mt-1 font-semibold uppercase tracking-wider" style={{color:c as string}}>{l}</div></div>)}</div>
+      <div className="rounded-xl overflow-hidden" style={{border:'1px solid #152244'}}><div className="px-5 py-3 flex items-center justify-between" style={{background:'#060D1A',borderBottom:'1px solid #152244'}}><h3 className="text-sm font-semibold text-white">{openA.length} Alert Aktif — Perlu Penanganan</h3><span className="text-xs px-2 py-0.5 rounded" style={{background:'rgba(231,76,60,0.15)',color:RED}}>{cr} Critical</span></div><div className="divide-y" style={{borderColor:'#152244'}}>{openA.map((a:any)=>{const s=sev[a.severity]||sev.medium;return(<div key={a.id} className="flex items-start gap-4 px-5 py-4" style={{background:'#0B1A33'}}><div className="flex-1 min-w-0"><div className="flex items-center flex-wrap gap-2 mb-1.5"><span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`}}>{a.severity.toUpperCase()}</span><span className="text-xs font-bold" style={{color:'#D4DCE8'}}>{alertLbl[a.alert_type]||a.alert_type}</span>{a.mining_units?.unit_id&&<><span className="text-xs" style={{color:'#4A5C75'}}>·</span><span className="text-xs font-mono font-bold text-white">{a.mining_units.unit_id}</span></>}{a.reported_by&&<span className="text-xs ml-auto" style={{color:'#4A5C75'}}>👤 {a.reported_by}</span>}</div>{(a.location||a.description)&&<p className="text-xs leading-relaxed mb-1" style={{color:'#7B8BA3'}}>{[a.location,a.description].filter(Boolean).join(' — ')}</p>}<span className="text-xs" style={{color:'#4A5C75'}}>{fmtDateTime(a.created_at)}</span></div><button onClick={()=>tangani(a.id)} className="text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 hover:opacity-85 transition" style={{background:GOLD,color:'#060D1A'}}>Tangani ✓</button></div>)})}{openA.length===0&&<div className="px-5 py-12 text-center text-sm" style={{color:'#4A5C75',background:'#0B1A33'}}>Semua clear — tidak ada alert aktif ✅</div>}</div></div>
+      <div className="rounded-xl p-5" style={{background:'#0B1A33',border:'1px solid #152244'}}><h3 className="text-sm font-semibold text-white mb-4">Tren Insiden 30 Hari Terakhir</h3>{trend.length>0?(<ResponsiveContainer width="100%" height={260}><LineChart data={trend}><CartesianGrid stroke="#152244" strokeDasharray="3 3"/><XAxis dataKey="date" tick={{fill:'#7B8BA3',fontSize:10}} axisLine={false} tickLine={false} interval={4}/><YAxis tick={{fill:'#7B8BA3',fontSize:11}} axisLine={false} tickLine={false} allowDecimals={false}/><Tooltip contentStyle={{background:'#060D1A',border:'1px solid #1A3470',borderRadius:8}}/><Legend wrapperStyle={{fontSize:11}}/><Line type="monotone" dataKey="fatigue" name="Fatigue" stroke="#60A5FA" strokeWidth={1.5} dot={false}/><Line type="monotone" dataKey="unsafeAct" name="Unsafe Act" stroke={RED} strokeWidth={1.5} dot={false}/><Line type="monotone" dataKey="nearMiss" name="Near Miss" stroke={GOLD} strokeWidth={1.5} dot={false}/><Line type="monotone" dataKey="breakdown" name="Breakdown" stroke="#A78BFA" strokeWidth={1.5} dot={false}/><Line type="monotone" dataKey="env" name="Env" stroke={GREEN} strokeWidth={1.5} dot={false}/></LineChart></ResponsiveContainer>):<p className="text-xs text-center py-8" style={{color:'#4A5C75'}}>Belum ada data insiden</p>}</div>
+      <div className="rounded-xl overflow-hidden" style={{border:'1px solid #152244'}}><div className="px-5 py-3" style={{background:'#060D1A',borderBottom:'1px solid #152244'}}><h3 className="text-sm font-semibold text-white">Riwayat Terselesaikan ({resolved.length})</h3></div><table className="w-full text-sm"><thead><tr style={{background:'#060D1A',borderBottom:'1px solid #152244'}}>{['Tipe','Severity','Unit','Lokasi','Deskripsi','Waktu','Pelapor'].map(h=><th key={h} className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wider" style={{color:'#7B8BA3'}}>{h}</th>)}</tr></thead><tbody>{resolved.map((r:any)=>{const s=sev[r.severity]||sev.medium;return(<tr key={r.id} style={{borderBottom:'1px solid #152244'}}><td className="px-3 py-3 text-xs text-white">{alertLbl[r.alert_type]||r.alert_type}</td><td className="px-3 py-3"><span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`}}>{r.severity}</span></td><td className="px-3 py-3 font-mono text-xs text-white">{r.mining_units?.unit_id||'—'}</td><td className="px-3 py-3 text-xs" style={{color:'#7B8BA3'}}>{r.location||'—'}</td><td className="px-3 py-3 text-xs max-w-xs truncate" style={{color:'#7B8BA3'}}>{r.description||'—'}</td><td className="px-3 py-3 text-xs" style={{color:'#4A5C75'}}>{fmtDateTime(r.created_at)}</td><td className="px-3 py-3 text-xs" style={{color:'#4A5C75'}}>{r.reported_by||'—'}</td></tr>)})}{resolved.length===0&&<tr><td colSpan={7} className="px-4 py-8 text-center text-xs" style={{color:'#4A5C75'}}>Belum ada alert terselesaikan</td></tr>}</tbody></table></div>
+      {showRpt&&(<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.75)'}}><div className="rounded-2xl w-full max-w-lg shadow-2xl" style={{background:'#0B1A33',border:'1px solid #1A3470'}}><div className="flex items-center justify-between p-5 border-b" style={{borderColor:'#152244'}}><h3 className="font-bold text-white">Laporkan Kejadian K3LH</h3><button onClick={()=>setShowRpt(false)} className="text-gray-500 hover:text-white p-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><form onSubmit={report} className="p-5 space-y-4">{rptErr&&<div className="px-3 py-2 rounded-lg text-xs" style={{background:'rgba(231,76,60,0.15)',color:RED,border:'1px solid #E74C3C40'}}>{rptErr}</div>}<div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Unit</label><select value={rpt.unit_id} onChange={e=>setRpt(f=>({...f,unit_id:e.target.value}))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}><option value="">Tanpa unit</option>{units.map(u=><option key={u.id} value={u.unit_id}>{u.unit_id}</option>)}</select></div><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Dilaporkan Oleh</label><input type="text" value={rpt.reported_by} onChange={e=>setRpt(f=>({...f,reported_by:e.target.value}))} placeholder="Nama / Jabatan" className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Tipe Kejadian</label><select value={rpt.alert_type} onChange={e=>setRpt(f=>({...f,alert_type:e.target.value}))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}>{alertOpts.map(t=><option key={t} value={t}>{alertLbl[t]}</option>)}</select></div><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Severity</label><select value={rpt.severity} onChange={e=>setRpt(f=>({...f,severity:e.target.value}))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option></select></div></div><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Lokasi *</label><input type="text" value={rpt.location} onChange={e=>setRpt(f=>({...f,location:e.target.value}))} required placeholder="Contoh: Pit 1A Loading Point" className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}/></div><div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{color:'#7B8BA3'}}>Deskripsi *</label><textarea value={rpt.description} onChange={e=>setRpt(f=>({...f,description:e.target.value}))} required rows={3} placeholder="Jelaskan kronologi kejadian..." className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600 resize-none" style={{background:'#0F1F3D',border:'1px solid #1A3470'}}/></div><button type="submit" className="w-full py-2.5 rounded-lg text-sm font-bold" style={{background:GOLD,color:'#060D1A'}}>Laporkan Kejadian</button></form></div></div>)}
     </div>
   )
 }

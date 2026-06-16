@@ -1,26 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import Sidebar from '@/components/Sidebar'
 
-export default function LoginForm({ onLogin }: { onLogin: (u: { email: string }) => void }) {
+const VALID_ACCOUNTS: Record<string, string> = {
+  'admin@pama.co.id': 'pama2026',
+  'foreman@pama.co.id': 'pama2026',
+  'operator@pama.co.id': 'pama2026',
+}
+
+export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; role: string }) => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPw, setShowPw] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!email || !password) {
-      setError('Email dan password wajib diisi.')
-      return
-    }
+
+    if (!email.trim()) { setError('Email wajib diisi'); return }
+    if (!password.trim()) { setError('Password wajib diisi'); return }
+
+    const validPw = VALID_ACCOUNTS[email.toLowerCase().trim()]
+    if (!validPw) { setError('Akun tidak ditemukan'); return }
+    if (password !== validPw) { setError('Password salah'); return }
+
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      onLogin({ email })
-    }, 900)
+    const role = email.includes('admin') ? 'Admin' : email.includes('foreman') ? 'Foreman' : 'Operator'
+    setTimeout(() => { setLoading(false); onLogin({ email: email.trim(), role }) }, 600)
   }
 
   return (
@@ -63,7 +71,8 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string })
           <h2 className="text-lg font-semibold text-white mb-6">Masuk ke Sistem</h2>
 
           {error && (
-            <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ background: 'rgba(231,76,60,0.2)', color: '#E74C3C', border: '1px solid #E74C3C40' }}>
+            <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2" style={{ background: 'rgba(231,76,60,0.2)', color: '#E74C3C', border: '1px solid #E74C3C40' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 flex-shrink-0"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
               {error}
             </div>
           )}
@@ -72,22 +81,31 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string })
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#7B8BA3' }}>Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="operator@pamapersada.co.id"
+                placeholder="admin@pama.co.id"
                 className="w-full px-4 py-3 rounded-lg text-white text-sm outline-none transition-all placeholder-gray-600"
                 style={{ background: '#0F1F3D', border: '1px solid #1A3470', caretColor: '#F5A623' }}
                 onFocus={(e) => (e.target.style.borderColor = '#F5A623')}
-                onBlur={(e) => (e.target.style.borderColor = '#1A3470')}
+                onBlur={(e) => (e.target.style.borderColor = error ? '#E74C3C' : '#1A3470')}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#7B8BA3' }}>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg text-white text-sm outline-none transition-all"
-                style={{ background: '#0F1F3D', border: '1px solid #1A3470', caretColor: '#F5A623' }}
-                onFocus={(e) => (e.target.style.borderColor = '#F5A623')}
-                onBlur={(e) => (e.target.style.borderColor = '#1A3470')}
-              />
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-lg text-white text-sm outline-none transition-all pr-10"
+                  style={{ background: '#0F1F3D', border: '1px solid #1A3470', caretColor: '#F5A623' }}
+                  onFocus={(e) => (e.target.style.borderColor = '#F5A623')}
+                  onBlur={(e) => (e.target.style.borderColor = error ? '#E74C3C' : '#1A3470')}
+                />
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
+                  {showPw ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
             <button type="submit" disabled={loading}
               className="w-full py-3 rounded-lg font-bold text-sm tracking-wide transition-all duration-200 mt-2"
@@ -99,6 +117,11 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string })
           <p className="text-xs text-center mt-6" style={{ color: '#4A5C75' }}>
             Remote Operation Center · Balikpapan Site
           </p>
+        </div>
+
+        <div className="mt-4 p-3 rounded-lg text-center" style={{ background: '#0B1A33', border: '1px solid #152244' }}>
+          <p className="text-xs font-semibold" style={{ color: '#F5A623' }}>Akun Demo</p>
+          <p className="text-xs mt-1" style={{ color: '#7B8BA3' }}>admin@pama.co.id / pama2026</p>
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#4A5C75' }}>

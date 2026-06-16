@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import Toast from '@/components/Toast'
 
 const GOLD  = '#F5A623'
 const GREEN = '#2ECC71'
@@ -33,9 +34,11 @@ export default function FleetManagement() {
   const [filterType, setFilterType] = useState('Semua')
   const [filterArea, setFilterArea] = useState('Semua')
   const [filterStatus, setFilterStatus] = useState('Semua')
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const [showProdModal, setShowProdModal] = useState(false)
   const [prodForm, setProdForm] = useState({ unit_id: '', log_date: formatDate(new Date()), shift: 1, bcm_produced: '', cycle_time_minutes: '', idle_time_minutes: '', material_type: 'overburden' })
+  const [prodError, setProdError] = useState('')
 
   const fetchUnits = async () => {
     const { data } = await supabase.from('mining_units').select('*').order('unit_id')
@@ -68,14 +71,21 @@ export default function FleetManagement() {
 
   const handleUpdateStatus = async (unit: any, newStatus: string) => {
     const { error } = await supabase.from('mining_units').update({ status: newStatus }).eq('id', unit.id)
-    if (error) alert('Gagal update status: ' + error.message)
-    else fetchUnits()
+    if (error) setToast({ message: 'Gagal: ' + error.message, type: 'error' })
+    else { setToast({ message: `Status ${unit.unit_id} → ${statusLbl[newStatus]}`, type: 'success' }); fetchUnits() }
   }
 
   const handleProdSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setProdError('')
+
+    if (!prodForm.unit_id) { setProdError('Pilih unit terlebih dahulu'); return }
+    if (!prodForm.log_date) { setProdError('Tanggal wajib diisi'); return }
+    if (!prodForm.bcm_produced || Number(prodForm.bcm_produced) <= 0) { setProdError('BCM harus lebih dari 0'); return }
+
     const unit = units.find(u => u.unit_id === prodForm.unit_id)
-    if (!unit) { alert('Unit tidak ditemukan'); return }
+    if (!unit) { setProdError('Unit tidak ditemukan'); return }
+
     const { error } = await supabase.from('production_logs').insert({
       unit_id: unit.id, log_date: prodForm.log_date, shift: Number(prodForm.shift),
       bcm_produced: Number(prodForm.bcm_produced) || 0,
@@ -83,15 +93,18 @@ export default function FleetManagement() {
       idle_time_minutes: Number(prodForm.idle_time_minutes) || 0,
       material_type: prodForm.material_type,
     })
-    if (error) { alert('Gagal input produksi: ' + error.message); return }
+    if (error) { setProdError('Gagal: ' + error.message); return }
     setShowProdModal(false)
     setProdForm({ unit_id: '', log_date: formatDate(new Date()), shift: 1, bcm_produced: '', cycle_time_minutes: '', idle_time_minutes: '', material_type: 'overburden' })
+    setToast({ message: `Produksi ${unit.unit_id} berhasil disimpan`, type: 'success' })
   }
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-10 h-10 border-4 border-gray-700 rounded-full animate-spin" style={{ borderTopColor: GOLD }} /></div>
 
   return (
     <div className="p-6 space-y-5">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-white">Fleet Management</h1>
@@ -189,12 +202,13 @@ export default function FleetManagement() {
               </button>
             </div>
             <form onSubmit={handleProdSubmit} className="p-5 space-y-4">
-              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Unit</label>
-                <select value={prodForm.unit_id} onChange={e => setProdForm(f => ({ ...f, unit_id: e.target.value }))} required className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}>
+              {prodError && <div className="px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(231,76,60,0.15)', color: RED, border: '1px solid #E74C3C40' }}>{prodError}</div>}
+              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Unit *</label>
+                <select value={prodForm.unit_id} onChange={e => setProdForm(f => ({ ...f, unit_id: e.target.value }))} required className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: `1px solid ${!prodForm.unit_id && prodError ? RED : '#1A3470'}` }}>
                   <option value="">Pilih Unit</option>{units.map(u => <option key={u.id} value={u.unit_id}>{u.unit_id} ({typeMap[u.unit_type]})</option>)}
                 </select></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Tanggal</label>
+                <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Tanggal *</label>
                   <input type="date" value={prodForm.log_date} onChange={e => setProdForm(f => ({ ...f, log_date: e.target.value }))} required className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
                 <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Shift</label>
                   <select value={prodForm.shift} onChange={e => setProdForm(f => ({ ...f, shift: Number(e.target.value) }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}>
@@ -205,13 +219,13 @@ export default function FleetManagement() {
                 <select value={prodForm.material_type} onChange={e => setProdForm(f => ({ ...f, material_type: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }}>
                   <option value="overburden">Overburden (OB)</option><option value="coal">Batubara (Coal)</option><option value="mud">Mud</option>
                 </select></div>
-              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>BCM Produksi</label>
-                <input type="number" step="0.01" value={prodForm.bcm_produced} onChange={e => setProdForm(f => ({ ...f, bcm_produced: e.target.value }))} required className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
+              <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>BCM Produksi *</label>
+                <input type="number" step="0.01" min="0" value={prodForm.bcm_produced} onChange={e => setProdForm(f => ({ ...f, bcm_produced: e.target.value }))} required className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: `1px solid ${!prodForm.bcm_produced && prodError ? RED : '#1A3470'}` }} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Cycle Time (min)</label>
-                  <input type="number" step="0.1" value={prodForm.cycle_time_minutes} onChange={e => setProdForm(f => ({ ...f, cycle_time_minutes: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
+                  <input type="number" step="0.1" min="0" value={prodForm.cycle_time_minutes} onChange={e => setProdForm(f => ({ ...f, cycle_time_minutes: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
                 <div><label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#7B8BA3' }}>Idle Time (min)</label>
-                  <input type="number" step="0.1" value={prodForm.idle_time_minutes} onChange={e => setProdForm(f => ({ ...f, idle_time_minutes: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
+                  <input type="number" step="0.1" min="0" value={prodForm.idle_time_minutes} onChange={e => setProdForm(f => ({ ...f, idle_time_minutes: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm text-white" style={{ background: '#0F1F3D', border: '1px solid #1A3470' }} /></div>
               </div>
               <button type="submit" className="w-full py-2.5 rounded-lg text-sm font-bold" style={{ background: GOLD, color: '#060D1A' }}>Simpan Data Produksi</button>
             </form>

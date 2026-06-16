@@ -1,0 +1,6 @@
+{
+  "/safety/page": "app/safety/page.js",
+  "/fleet/page": "app/fleet/page.js",
+  "/fuel/page": "app/fuel/page.js",
+  "/page": "app/page.js"
+}

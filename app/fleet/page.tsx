@@ -41,8 +41,10 @@ export default function FleetManagement() {
   const [prodError, setProdError] = useState('')
 
   const fetchUnits = async () => {
+    try {
     const { data } = await supabase.from('mining_units').select('*').order('unit_id')
     setUnits(data || [])
+    } catch (err) { console.error('Fleet fetch error:', err) }
     setLoading(false)
   }
   useEffect(() => { fetchUnits() }, [])

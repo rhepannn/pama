@@ -37,12 +37,14 @@ export default function AdminSettings() {
 
   const fetchSettings = async () => {
     setLoading(true)
+    try {
     const { data } = await supabase.from('site_settings').select('*')
     if (data && data.length > 0) {
       const map: Record<string, string> = { ...DEFAULT_SETTINGS }
       data.forEach((row: any) => { map[row.key] = row.value })
       setSettings(map)
     }
+    } catch (err) { console.error('Admin fetch error:', err) }
     setLoading(false)
   }
 

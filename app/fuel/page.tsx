@@ -21,10 +21,13 @@ export default function FuelCost() {
   const [err, setErr] = useState('')
 
   const fetch = async () => {
+    try {
     const t = fmtDate(new Date())
     const { data: l } = await supabase.from('fuel_logs').select('*, mining_units(unit_id, unit_type)').eq('log_date', t).order('fuel_consumed', { ascending: false })
     const { data: u } = await supabase.from('mining_units').select('*').order('unit_id')
-    setLogs(l||[]); setUnits(u||[]); setLoading(false)
+    setLogs(l||[]); setUnits(u||[])
+    } catch (err) { console.error('Fuel fetch error:', err) }
+    setLoading(false)
   }
   useEffect(()=>{fetch()},[])
 

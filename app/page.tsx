@@ -90,6 +90,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true)
+      try {
       const todayStr = formatDate(new Date())
       const DAILY_TARGET = 120000
 
@@ -163,6 +164,9 @@ export default function Dashboard() {
         .eq('severity', 'critical')
       setCriticalAlerts(alerts || [])
 
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+      }
       setLoading(false)
     }
     fetchData()

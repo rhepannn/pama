@@ -22,7 +22,7 @@ export default function OperatorPerformance(){
   const [showAdd,setShowAdd]=useState(false);const [af,setAf]=useState({employee_id:'',name:'',shift:'1',unit_id:'',position:'Operator',productivity_score:'0',fuel_efficiency_score:'0',safety_score:'0',violation_count:'0',certification:''});const [addErr,setAddErr]=useState('')
   const [showUpd,setShowUpd]=useState(false);const [uf,setUf]=useState({id:'',productivity_score:'0',fuel_efficiency_score:'0',safety_score:'0',violation_count:'0'});const [updErr,setUpdErr]=useState('')
 
-  const fetch=async()=>{const{data}=await supabase.from('operators').select('*, mining_units(unit_id)').order('productivity_score',{ascending:false});setOps(data||[]);const{data:u}=await supabase.from('mining_units').select('*').order('unit_id');setUnits(u||[]);setLoading(false)}
+  const fetch=async()=>{try{const{data}=await supabase.from('operators').select('*, mining_units(unit_id)').order('productivity_score',{ascending:false});setOps(data||[]);const{data:u}=await supabase.from('mining_units').select('*').order('unit_id');setUnits(u||[])}catch(err){console.error('Operator fetch error:',err)}setLoading(false)}
   useEffect(()=>{fetch()},[])
 
   const filtered=ops.filter(o=>sf==='Semua'||o.shift===Number(sf.replace('Shift ','')))

@@ -19,6 +19,7 @@ export default function SafetyAlert(){
   const [showRpt,setShowRpt]=useState(false);const [rpt,setRpt]=useState({unit_id:'',alert_type:'fatigue_detection',severity:'critical',location:'',description:'',reported_by:''});const [rptErr,setRptErr]=useState('')
 
   const fetch=async()=>{
+    try{
     const{data:op}=await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status','open').order('created_at',{ascending:false});setAlerts(op||[])
     const{data:rs}=await supabase.from('safety_alerts').select('*, mining_units(unit_id, unit_type)').eq('status','resolved').order('created_at',{ascending:false}).limit(50);setResolved(rs||[])
     const{data:u}=await supabase.from('mining_units').select('*').order('unit_id');setUnits(u||[])
@@ -26,7 +27,9 @@ export default function SafetyAlert(){
     const{data:tl}=await supabase.from('safety_alerts').select('created_at, alert_type').gte('created_at',fmtDate(ago)).lte('created_at',`${today}T23:59:59`)
     const m:Record<string,any>={};if(tl)tl.forEach((l:any)=>{const d=l.created_at?fmtDate(new Date(l.created_at)):null;if(!d)return;if(!m[d])m[d]={fatigue_detection:0,unsafe_act:0,near_miss:0,breakdown_risk:0,environmental:0,total:0};m[d][l.alert_type]=(m[d][l.alert_type]||0)+1;m[d].total+=1})
     const arr:{date:string;fatigue:number;unsafeAct:number;nearMiss:number;breakdown:number;env:number;total:number}[]=[];for(let i=29;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=fmtDate(d);arr.push({date:`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`,fatigue:m[k]?.fatigue_detection||0,unsafeAct:m[k]?.unsafe_act||0,nearMiss:m[k]?.near_miss||0,breakdown:m[k]?.breakdown_risk||0,env:m[k]?.environmental||0,total:m[k]?.total||0})}
-    setTrend(arr);setLoading(false)
+    setTrend(arr)
+    } catch (err) { console.error('Safety fetch error:', err) }
+    setLoading(false)
   }
   useEffect(()=>{fetch()},[])
 

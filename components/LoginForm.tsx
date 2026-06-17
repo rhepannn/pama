@@ -26,6 +26,7 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; r
   const [logoUrl, setLogoUrl] = useState('')
 
   useEffect(() => {
+    try {
     supabase.from('site_settings').select('*').then(({ data }) => {
       if (data) {
         const map: Record<string, string> = {}
@@ -40,6 +41,7 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; r
         if (map.logo_url) setLogoUrl(map.logo_url)
       }
     }).catch(() => {})
+    } catch {}
   }, [])
 
   const handleSubmit = (e: React.FormEvent) => {

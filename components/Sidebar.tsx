@@ -36,6 +36,7 @@ export default function Sidebar({ onLogout, user }: { onLogout: () => void; user
   const [siteSub, setSiteSub] = useState('Mining Platform')
 
   useEffect(() => {
+    try {
     supabase.from('site_settings').select('*').then(({ data }) => {
       if (data) {
         const map: Record<string, string> = {}
@@ -44,6 +45,7 @@ export default function Sidebar({ onLogout, user }: { onLogout: () => void; user
         if (map.site_title) { const parts = map.site_title.split(' '); setSiteTitle(parts.slice(0, 2).join(' ')); setSiteSub(parts.slice(2).join(' ') || 'Mining Platform') }
       }
     }).catch(() => {})
+    } catch {}
   }, [])
 
   return (

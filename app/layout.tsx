@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import LoginForm from '@/components/LoginForm'
+import LandingPage from '@/components/LandingPage'
 import './globals.css'
 
 function AppContent({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <LoginForm onLogin={(u) => setUser(u)} />
+    return <LandingPage onLogin={(u) => setUser(u)} />
   }
 
   const handleLogout = () => { setUser(null); router.push('/') }

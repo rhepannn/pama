@@ -239,6 +239,27 @@ SELECT id, 'fatigue_detection', 'medium',   'Hauling Road A KM 2',   'DT-013 ter
 SELECT id, 'breakdown_risk',    'critical', 'Pit 1A Disposal',      'DOZ-001 final drive noise abnormal. Risiko final drive failure.',                          'resolved', 'Mekanik Lapangan'        FROM mining_units WHERE unit_id = 'DOZ-001';
 
 -- =============================================================================
+-- SITE SETTINGS (Landing page, logo, branding)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS site_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  key VARCHAR(50) NOT NULL UNIQUE,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO site_settings (key, value) VALUES
+  ('site_title', 'PAMA Smart Mining'),
+  ('site_subtitle', 'Digital Platform · PT Pamapersada Nusantara'),
+  ('login_heading', 'Masuk ke Sistem'),
+  ('site_footer', 'Remote Operation Center · Balikpapan Site'),
+  ('copyright', '© 2026 PT Pamapersada Nusantara. All rights reserved.'),
+  ('demo_text', 'Akun Demo'),
+  ('demo_account', 'admin@pama.co.id / pama2026'),
+  ('logo_url', '')
+ON CONFLICT (key) DO NOTHING;
+
+-- =============================================================================
 -- INDEXES & PERFORMANCE
 -- =============================================================================
 CREATE INDEX IF NOT EXISTS idx_production_logs_date ON production_logs(log_date);
@@ -249,6 +270,18 @@ CREATE INDEX IF NOT EXISTS idx_safety_alerts_status ON safety_alerts(status);
 CREATE INDEX IF NOT EXISTS idx_safety_alerts_severity ON safety_alerts(severity);
 CREATE INDEX IF NOT EXISTS idx_operators_shift ON operators(shift);
 CREATE INDEX IF NOT EXISTS idx_operators_unit ON operators(unit_id);
+
+-- =============================================================================
+-- STORAGE SETUP (Run in Supabase Dashboard > Storage)
+-- =============================================================================
+-- 1. Create a new bucket named: pama-assets
+-- 2. Set it to "Public"
+-- 3. Create RLS policy to allow uploads (or run below):
+--
+-- CREATE POLICY "Allow public uploads" ON storage.objects
+--   FOR INSERT WITH CHECK (bucket_id = 'pama-assets');
+-- CREATE POLICY "Allow public reads" ON storage.objects
+--   FOR SELECT USING (bucket_id = 'pama-assets');
 
 -- =============================================================================
 -- END OF MIGRATION

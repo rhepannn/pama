@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 const VALID_ACCOUNTS: Record<string, string> = {
   'admin@pama.co.id': 'pama2026',
@@ -14,6 +15,32 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; r
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
+
+  const [title, setTitle] = useState('PAMA Smart Mining')
+  const [subtitle, setSubtitle] = useState('Digital Platform · PT Pamapersada Nusantara')
+  const [loginHeading, setLoginHeading] = useState('Masuk ke Sistem')
+  const [footer, setFooter] = useState('Remote Operation Center · Balikpapan Site')
+  const [copyright, setCopyright] = useState('© 2026 PT Pamapersada Nusantara. All rights reserved.')
+  const [demoText, setDemoText] = useState('Akun Demo')
+  const [demoAccount, setDemoAccount] = useState('admin@pama.co.id / pama2026')
+  const [logoUrl, setLogoUrl] = useState('')
+
+  useEffect(() => {
+    supabase.from('site_settings').select('*').then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach((row: any) => { map[row.key] = row.value })
+        if (map.site_title) setTitle(map.site_title)
+        if (map.site_subtitle) setSubtitle(map.site_subtitle)
+        if (map.login_heading) setLoginHeading(map.login_heading)
+        if (map.site_footer) setFooter(map.site_footer)
+        if (map.copyright) setCopyright(map.copyright)
+        if (map.demo_text) setDemoText(map.demo_text)
+        if (map.demo_account) setDemoAccount(map.demo_account)
+        if (map.logo_url) setLogoUrl(map.logo_url)
+      }
+    }).catch(() => {})
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,20 +82,25 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; r
       <div className="relative z-10 w-full max-w-md px-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 shadow-2xl"
-            style={{ background: 'linear-gradient(135deg, #F5A623, #E8950C)' }}>
-            <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10">
-              <circle cx="20" cy="20" r="17" fill="none" stroke="#060D1A" strokeWidth="2" />
-              <path d="M5 32L13 10L20 24L27 14L37 32H5Z" fill="#060D1A" />
-            </svg>
+            style={{ background: logoUrl ? 'transparent' : 'linear-gradient(135deg, #F5A623, #E8950C)' }}>
+            {logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={logoUrl} alt="Logo" className="w-14 h-14 object-contain" />
+            ) : (
+              <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10">
+                <circle cx="20" cy="20" r="17" fill="none" stroke="#060D1A" strokeWidth="2" />
+                <path d="M5 32L13 10L20 24L27 14L37 32H5Z" fill="#060D1A" />
+              </svg>
+            )}
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">PAMA Smart Mining</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">{title}</h1>
           <p className="text-sm mt-1" style={{ color: '#7B8BA3' }}>
-            Digital Platform · PT Pamapersada Nusantara
+            {subtitle}
           </p>
         </div>
 
         <div className="rounded-2xl p-8 shadow-2xl" style={{ background: '#0B1A33', border: '1px solid #1A3470' }}>
-          <h2 className="text-lg font-semibold text-white mb-6">Masuk ke Sistem</h2>
+          <h2 className="text-lg font-semibold text-white mb-6">{loginHeading}</h2>
 
           {error && (
             <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2" style={{ background: 'rgba(231,76,60,0.2)', color: '#E74C3C', border: '1px solid #E74C3C40' }}>
@@ -115,17 +147,17 @@ export default function LoginForm({ onLogin }: { onLogin: (u: { email: string; r
           </form>
 
           <p className="text-xs text-center mt-6" style={{ color: '#4A5C75' }}>
-            Remote Operation Center · Balikpapan Site
+            {footer}
           </p>
         </div>
 
         <div className="mt-4 p-3 rounded-lg text-center" style={{ background: '#0B1A33', border: '1px solid #152244' }}>
-          <p className="text-xs font-semibold" style={{ color: '#F5A623' }}>Akun Demo</p>
-          <p className="text-xs mt-1" style={{ color: '#7B8BA3' }}>admin@pama.co.id / pama2026</p>
+          <p className="text-xs font-semibold" style={{ color: '#F5A623' }}>{demoText}</p>
+          <p className="text-xs mt-1" style={{ color: '#7B8BA3' }}>{demoAccount}</p>
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#4A5C75' }}>
-          © 2026 PT Pamapersada Nusantara. All rights reserved.
+          {copyright}
         </p>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 const navItems = [
   {
@@ -30,6 +31,20 @@ export default function Sidebar({ onLogout, user }: { onLogout: () => void; user
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('')
+  const [siteTitle, setSiteTitle] = useState('PAMA Smart')
+  const [siteSub, setSiteSub] = useState('Mining Platform')
+
+  useEffect(() => {
+    supabase.from('site_settings').select('*').then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {}
+        data.forEach((row: any) => { map[row.key] = row.value })
+        if (map.logo_url) setLogoUrl(map.logo_url)
+        if (map.site_title) { const parts = map.site_title.split(' '); setSiteTitle(parts.slice(0, 2).join(' ')); setSiteSub(parts.slice(2).join(' ') || 'Mining Platform') }
+      }
+    }).catch(() => {})
+  }, [])
 
   return (
     <aside
@@ -42,16 +57,21 @@ export default function Sidebar({ onLogout, user }: { onLogout: () => void; user
       }}
     >
       <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: '#152244' }}>
-        <div className="flex items-center justify-center rounded-lg font-black text-xs flex-shrink-0" style={{ width: 36, height: 36, background: '#F5A623' }}>
-          <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
-            <circle cx="16" cy="16" r="14" fill="none" stroke="#060D1A" strokeWidth="2" />
-            <path d="M8 22L14 8L18 18L24 10L30 22H8Z" fill="#060D1A" />
-          </svg>
+        <div className="flex items-center justify-center rounded-lg font-black text-xs flex-shrink-0" style={{ width: 36, height: 36, background: logoUrl ? 'transparent' : '#F5A623' }}>
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={logoUrl} alt="Logo" className="w-7 h-7 object-contain" />
+          ) : (
+            <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
+              <circle cx="16" cy="16" r="14" fill="none" stroke="#060D1A" strokeWidth="2" />
+              <path d="M8 22L14 8L18 18L24 10L30 22H8Z" fill="#060D1A" />
+            </svg>
+          )}
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <div className="text-white font-bold text-sm leading-tight">PAMA Smart</div>
-            <div className="text-xs leading-tight" style={{ color: '#F5A623' }}>Mining Platform</div>
+            <div className="text-white font-bold text-sm leading-tight">{siteTitle}</div>
+            <div className="text-xs leading-tight" style={{ color: '#F5A623' }}>{siteSub}</div>
           </div>
         )}
         <button onClick={() => setCollapsed(!collapsed)} className="ml-auto text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0">
@@ -83,6 +103,29 @@ export default function Sidebar({ onLogout, user }: { onLogout: () => void; user
             </button>
           )
         })}
+
+        {/* Admin link - only for admin role */}
+        {user?.role === 'Admin' && (
+          <button
+            onClick={() => router.push('/admin')}
+            title={collapsed ? 'Pengaturan' : undefined}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150"
+            style={{
+              background: pathname === '/admin' ? 'rgba(245,166,35,0.12)' : 'transparent',
+              borderLeft: pathname === '/admin' ? '3px solid #F5A623' : '3px solid transparent',
+              color: pathname === '/admin' ? '#F5A623' : '#7B8BA3',
+            }}
+            onMouseEnter={(e) => { if (pathname !== '/admin') e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+            onMouseLeave={(e) => { if (pathname !== '/admin') e.currentTarget.style.background = 'transparent' }}
+          >
+            <span className="flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </span>
+            {!collapsed && <span className="text-sm font-medium leading-tight">Pengaturan</span>}
+          </button>
+        )}
       </nav>
 
       <div className="border-t p-3" style={{ borderColor: '#152244' }}>

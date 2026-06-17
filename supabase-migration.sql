@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS safety_alerts (
 -- =============================================================================
 
 -- ─── MINING UNITS ────────────────────────────────────────────────────────────
+-- Only seed if table is empty
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM mining_units LIMIT 1) THEN
 INSERT INTO mining_units (unit_id, unit_type, make_model, area, status, utilization, engine_hours, last_maintenance_date, next_maintenance_hours) VALUES
 -- Excavators (Backhoe)
 ('EX-001', 'excavator', 'Komatsu PC2000-8',  'Pit 1A',    'active',    88.5, 4520.3, '2026-05-20', 5000),
@@ -117,9 +121,15 @@ INSERT INTO mining_units (unit_id, unit_type, make_model, area, status, utilizat
 ('GR-002', 'grader', 'Komatsu GD825A-2',  'Hauling Road B', 'active',    68.9, 3900.7, '2026-06-02', 4300),
 ('DR-001', 'drill',  'Sandvik DR412i',    'Pit 1A',         'active',    76.4, 3200.8, '2026-05-25', 3700),
 ('DR-002', 'drill',  'Atlas Copco DML',   'Pit 3A',         'idle',      42.1, 5100.2, '2026-04-10', 5500);
+END IF;
+END $$;
 
 -- ─── PRODUCTION LOGS (Last 7 Days) ──────────────────────────────────────────
 -- Shift 1: 06:00-14:00 | Shift 2: 14:00-22:00 | Shift 3: 22:00-06:00
+-- Only seed if table is empty
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM production_logs LIMIT 1) THEN
 
 -- Day 1: 2026-06-10
 INSERT INTO production_logs (unit_id, log_date, shift, bcm_produced, cycle_time_minutes, idle_time_minutes, material_type)
@@ -177,8 +187,13 @@ SELECT id, '2026-06-16'::date, 1, 980, 3.2, 42, 'overburden' FROM mining_units W
 SELECT id, '2026-06-16'::date, 1, 750, 3.5, 58, 'coal' FROM mining_units WHERE unit_id = 'EX-002' UNION ALL
 SELECT id, '2026-06-16'::date, 1, 1120, 2.8, 28, 'overburden' FROM mining_units WHERE unit_id = 'EX-004' UNION ALL
 SELECT id, '2026-06-16'::date, 1, 520, 4.3, 80, 'overburden' FROM mining_units WHERE unit_id = 'EX-006';
+END IF;
+END $$;
 
 -- ─── FUEL LOGS (Today) ──────────────────────────────────────────────────────
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM fuel_logs LIMIT 1) THEN
 INSERT INTO fuel_logs (unit_id, log_date, shift, activity, fuel_consumed, bcm_activity)
 SELECT id, '2026-06-16'::date, 1, 'loading',  285, 980  FROM mining_units WHERE unit_id = 'EX-001' UNION ALL
 SELECT id, '2026-06-16'::date, 1, 'loading',  245, 750  FROM mining_units WHERE unit_id = 'EX-002' UNION ALL
@@ -204,8 +219,13 @@ SELECT id, '2026-06-16'::date, 1, 'dozing',   245, 490  FROM mining_units WHERE 
 SELECT id, '2026-06-16'::date, 1, 'grading',  175, NULL  FROM mining_units WHERE unit_id = 'GR-001' UNION ALL
 SELECT id, '2026-06-16'::date, 1, 'grading',  160, NULL  FROM mining_units WHERE unit_id = 'GR-002' UNION ALL
 SELECT id, '2026-06-16'::date, 1, 'drilling', 210, NULL  FROM mining_units WHERE unit_id = 'DR-001';
+END IF;
+END $$;
 
 -- ─── OPERATORS ───────────────────────────────────────────────────────────────
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM operators LIMIT 1) THEN
 INSERT INTO operators (employee_id, name, shift, unit_id, position, productivity_score, fuel_efficiency_score, safety_score, violation_count, certification)
 SELECT 'PAMA-0142', 'Budi Santoso',      1, id, 'Sr. Operator',   92, 88, 95, 0, 'POP, SIO Excavator'   FROM mining_units WHERE unit_id = 'EX-001' UNION ALL
 SELECT 'PAMA-0287', 'Agus Prasetyo',     1, id, 'Operator',       85, 80, 90, 1, 'POP, SIO Dump Truck'  FROM mining_units WHERE unit_id = 'DT-001' UNION ALL
@@ -222,8 +242,13 @@ SELECT 'PAMA-0411', 'Irwan Susanto',     3, id, 'Operator',       48, 45, 52, 4,
 SELECT 'PAMA-0092', 'Bayu Kurniawan',    3, id, 'Sr. Operator',   89, 86, 91, 0, 'POP, POM, SIO'        FROM mining_units WHERE unit_id = 'DT-012' UNION ALL
 SELECT 'PAMA-0265', 'Andi Saputra',      3, id, 'Operator',       84, 81, 87, 0, 'POP, SIO Dump Truck'  FROM mining_units WHERE unit_id = 'DT-014' UNION ALL
 SELECT 'PAMA-0350', 'Rizki Fadillah',    3, id, 'Jr. Operator',   77, 74, 79, 0, 'POP, SIO Dozer'       FROM mining_units WHERE unit_id = 'DOZ-004';
+END IF;
+END $$;
 
 -- ─── SAFETY ALERTS ───────────────────────────────────────────────────────────
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM safety_alerts LIMIT 1) THEN
 INSERT INTO safety_alerts (unit_id, alert_type, severity, location, description, status, reported_by)
 SELECT id, 'fatigue_detection', 'critical', 'Hauling Road B KM 3',   'Operator DT-003 terdeteksi microsleep 3x dalam 15 menit. Speed 65 km/h di zona 40 km/h.', 'open',     'Sistem Fatigue Detection' FROM mining_units WHERE unit_id = 'DT-003' UNION ALL
 SELECT id, 'unsafe_act',        'high',     'Pit 2A Loading Point',  'Excavator EX-003 loading ke DT tanpa sinyal flagman. Near miss dengan LV.',               'open',     'Pengawas Shift 1'         FROM mining_units WHERE unit_id = 'EX-003' UNION ALL
@@ -237,6 +262,8 @@ SELECT id, 'near_miss',         'medium',   'Disposal Pit 1A',       'Light vehi
 SELECT id, 'unsafe_act',        'high',     'Workshop Area',         'Pekerja tidak memakai full body harness saat bekerja di ketinggian 3m pada DT-015.',       'resolved', 'HSE Officer'              FROM mining_units WHERE unit_id = 'DT-015' UNION ALL
 SELECT id, 'fatigue_detection', 'medium',   'Hauling Road A KM 2',   'DT-013 terdeteksi lane departure warning 2x. Operator mengantuk.',                          'resolved', 'Sistem Fatigue Detection' FROM mining_units WHERE unit_id = 'DT-013' UNION ALL
 SELECT id, 'breakdown_risk',    'critical', 'Pit 1A Disposal',      'DOZ-001 final drive noise abnormal. Risiko final drive failure.',                          'resolved', 'Mekanik Lapangan'        FROM mining_units WHERE unit_id = 'DOZ-001';
+END IF;
+END $$;
 
 -- =============================================================================
 -- SITE SETTINGS (Landing page, logo, branding)

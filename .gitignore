@@ -3,3 +3,7 @@ node_modules/
 dist/
 .DS_Store
 *.local
+.env
+pama.db
+pama.db-shm
+pama.db-wal
